@@ -1,0 +1,26 @@
+.ant-layout-sider-light .ant-layout-sider-zero-width-trigger {
+  background: #d4f1f4 !important;
+}
+
+.ant-layout-content {
+  padding: 1rem;
+}
+
+.ant-layout-sider {
+  padding: 2rem 0;
+  background: #d4f1f4 !important;
+  color: #05445e;
+  font-size: smaller;
+}
+
+blockquote {
+  border-left: 3px solid #888;
+  padding-left: 0.5rem;
+  font-style: italic;
+}
+
+@media (max-width: 576px) {
+  .ant-layout-sider {
+    width: 100%;
+  }
+}

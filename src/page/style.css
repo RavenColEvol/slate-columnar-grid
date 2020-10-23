@@ -1,0 +1,35 @@
+.new-col-left, .new-col-right {
+    position: absolute;
+    top: 0;
+    height: 90%;
+    width: 10px;
+    
+    z-index: 1;
+}
+
+.new-col-left {
+    left: -10px;
+    background: red;
+}
+
+.new-col-right {
+    right: 10px;
+    background: blue;
+}
+
+.table-resizer{
+    width: 5px;
+    height: 100%;
+    top:0;
+    right: 0;
+    position: absolute;
+    cursor: col-resize;
+    user-select: none;
+    margin-right: -3px;
+    transition: background 200ms ease-out 0s;
+    z-index: 9;
+    background: rgba(46, 170, 220, 1);
+}
+
+.table-resizer:hover{
+}
