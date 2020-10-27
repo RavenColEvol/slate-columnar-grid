@@ -217,6 +217,7 @@ const Element = ({ attributes, children, element }) => {
               <GridResizer element={element} editor={editor}/>
             </div>
     default:
+      console.log('render')
       return (
           <Drop element={element}>
             <Drag style={{cursor:'cross'}} element={element}><p  {...attributes}>{children}</p></Drag>
