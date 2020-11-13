@@ -1,105 +1,14 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState, useEffect } from "react";
 import isHotkey from "is-hotkey";
-import { Editable, withReact, useSlate, Slate, ReactEditor, useEditor } from "slate-react";
-import { Editor, Transforms, createEditor, Node } from "slate";
+import { Editable, withReact, useSlate, Slate, useEditor, useSelected, useFocused } from "slate-react";
+import { Editor, Transforms, createEditor } from "slate";
+import { cx, css } from 'emotion'
 import { withHistory } from "slate-history";
-import { HTML5Backend } from "react-dnd-html5-backend";
-import { DndProvider, useDrag, useDrop } from 'react-dnd'
 
-import GridResizer from './GridResizer'
+import { Drawer, Button as AButton} from 'antd'
 import { Button, Icon, Toolbar } from "../components";
+import { Design, getStyleSheet } from './Design';
 import './style.css'
-import { GridDrop } from './GridDnd'
-import withGrid from './withGrid'
-
-
-const Drop = ({element, ...props}) => {
-  const editor = useEditor()
-  const [{ over }, drop] = useDrop({
-    accept: 'any',
-    drop: (item, monitor) => {
-      Transforms.moveNodes(editor, { at: ReactEditor.findPath(editor, item.element), to: ReactEditor.findPath(editor, element)})
-    },
-    collect: (monitor) => {
-      return {
-        over: monitor.isOver()
-      }
-    }
-  })
-  return (
-    <div style={{ position: 'relative'}}>
-      <div ref={drop}>
-        {props.children}
-      </div>
-      <GridDrop editor={editor} element={element}/>
-    </div>
-  )
-}
-
-const Drag = ({element, children}) => {
-  const [, drag, preview] = useDrag({
-    item: { type: 'any', element },
-  })
-  
-  return (
-    <div style={{display: 'flex'}} >
-      <div ref={drag} suppressContentEditableWarning={true} style={{background: 'pink', cursor: 'grabbing'}} contentEditable={"false"}>DND</div>
-      <div ref={preview}>
-        {children}
-      </div>
-    </div>
-  )
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 const HOTKEYS = {
@@ -113,12 +22,21 @@ const LIST_TYPES = ["numbered-list", "bulleted-list"];
 
 const RichTextExample = ({setOutput}) => {
   const [value, setValue] = useState(initialValue);
+  const [open, setOpen] = useState(false);
   const renderElement = useCallback((props) => <Element {...props} />, []);
   const renderLeaf = useCallback((props) => <Leaf {...props} />, []);
-  const editor = useMemo(() => withGrid(withHistory(withReact(createEditor()))), []);
+  const editor = useMemo(() => withHistory(withReact(createEditor())), []);
+
+  useEffect(() => {
+    let styleSheet = getStyleSheet();
+    let scrteStyleSheet = document.createElement('style');
+    scrteStyleSheet.type = "text/css";
+    scrteStyleSheet.id = 'scrteStyleSheet';
+    scrteStyleSheet.appendChild(document.createTextNode(styleSheet));
+    document.body.appendChild(scrteStyleSheet);
+  }, [])
 
   return (
-    <DndProvider backend={HTML5Backend}>
     <Slate
       editor={editor}
       value={value}
@@ -146,6 +64,10 @@ const RichTextExample = ({setOutput}) => {
         autoFocus
         onKeyDown={(event) => {
           for (const hotkey in HOTKEYS) {
+            if(isHotkey('mod+e', event)) {
+              event.preventDefault();
+              setOpen(!open);
+            }
             if (isHotkey(hotkey, event)) {
               event.preventDefault();
               const mark = HOTKEYS[hotkey];
@@ -154,8 +76,12 @@ const RichTextExample = ({setOutput}) => {
           }
         }}
       />
+      <Drawer visible={open} onClose={() => setOpen(false)} width="400px" mask={false}>
+        <Design />
+      </Drawer>
+      
     </Slate>
-    </DndProvider>
+    
   );
 };
 
@@ -203,25 +129,20 @@ const isMarkActive = (editor, format) => {
 
 
 const Element = ({ attributes, children, element }) => {
-  const editor = useEditor();
+ 
   switch (element.type) {
-    case "row":
-      return <div {...attributes} style={{maxWidth: '100%', display: 'flex', background: '#eee'}}>{children}</div>;
-    case "column":
-      let width = 250;
-      if(element.meta?.width) {
-        width = element.meta.width;
-      }
-      return <div {...attributes} style={{width: `calc(100% * ${width})`, flexGrow: '0', flexShrink: '0', position: 'relative'}}>
-              {children}
-              <GridResizer element={element} editor={editor}/>
-            </div>
     default:
-      console.log('render')
+      const selected = useSelected()
+      const focused = useFocused();
+      let { className, id, styles = {}} = element.attrs || {};
+      if(selected && focused) {
+        styles = {
+          ...styles,
+          border: '1px solid blue'
+        };
+      }
       return (
-          <Drop element={element}>
-            <Drag style={{cursor:'cross'}} element={element}><p  {...attributes}>{children}</p></Drag>
-          </Drop>
+        <p  {...attributes} className={className} id={id} style={styles}>{children}</p>
       );
   }
 };

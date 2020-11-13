@@ -11,6 +11,7 @@
     "@ant-design/icons": "4.2.1",
     "@seznam/compose-react-refs": "1.0.4",
     "antd": "4.4.1",
+    "css-to-json": "^2.1.0",
     "emotion": "10.0.27",
     "immutable": "4.0.0-rc.12",
     "is-hotkey": "0.1.6",

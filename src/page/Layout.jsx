@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { Layout, Typography } from "antd";
+import { Layout, Typography, Tabs } from "antd";
 
 import Main from "./Main";
+import { Design } from './Design'
 
 const { Sider, Content } = Layout;
 const { Text } = Typography;
-
+const { TabPane } = Tabs
 const SiderAttrs = {
   collapsedWidth: 0,
   collapsible: true,
@@ -46,12 +47,13 @@ const Home = (props) => {
           style={{ background: "#eaffff" }}
         >
           <pre style={{ padding: "0 2rem" }}>
-            <Text underline strong>
-              Preview
-            </Text>
-            <br />
-            {JSON.stringify(output, null, 2)}
-          </pre>
+                <Text underline strong>
+                  Preview
+                </Text>
+                <br />
+                {JSON.stringify(output, null, 2)}
+              </pre>
+          
         </Sider>
       </Layout>
     </>
