@@ -33,3 +33,10 @@
 
 .table-resizer:hover{
 }
+
+.placeholder::before{
+    content: "Type / for more options";
+    position: absolute;
+    pointer-events: none;
+    display: block;
+}

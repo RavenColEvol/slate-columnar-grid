@@ -1,9 +1,14 @@
-import React, { useRef } from 'react';
-import { Form, Input, Button, Popover, Dropdown, Menu } from 'antd';
+import React, { useRef, useState } from 'react';
+import { Form, Input, Button, Popover, Dropdown, Menu, Collapse, InputNumber, Radio, Row, Col, Select, Tabs } from 'antd';
 import { Editor, Transforms, Element } from 'slate'
 import { useEditor, ReactEditor } from 'slate-react'
 import { CSSJSON } from './cssToJson'
 import { transform } from 'typescript';
+import { ParagraphForm } from './formComponents'
+import { LinkForm } from './formComponents/Link'
+
+const { Panel } = Collapse;
+const { Option } = Select;
 
 export const getStyleSheet = () => {
     let globalStyles = JSON.parse(localStorage.getItem('scrteStyleJson'));
@@ -181,7 +186,147 @@ const SaveDesign = ({values, selection}) => {
     )
 }
 
+let ss = {
+
+}
+
+export const DefineStyle = (props) => {
+    const [media, setMedia] = useState('Desktop');
+    const handleFinish = ({theme}) => {
+        let globalStyles = JSON.parse(localStorage.getItem('scrteStyleJson')) || {};
+        if(localStorage.getItem('styles')) {
+            let getTheme = JSON.parse(localStorage.getItem('styles'));
+            getTheme[theme] = globalStyles;
+            localStorage.setItem('styles', JSON.stringify(getTheme));
+        }
+        else {
+            localStorage.setItem('styles', JSON.stringify({[theme]: globalStyles}))
+        }
+    } 
+
+    const handleMediaChange = (e) => {
+        setMedia(e.target.value)
+    }
+
+    const saveCSS = (tagName, e) => {
+        let globalStyles = JSON.parse(localStorage.getItem('scrteStyleJson')) || {};
+
+        globalStyles[tagName] = {
+            ...(globalStyles[tagName] || {}),
+            [e.target.id]: e.target.value
+        }
+        
+        localStorage.setItem('scrteStyleJson', JSON.stringify(globalStyles));
+        let styleSheet = getStyleSheet();
+        if(media != 'Desktop') {
+            if(media === 'Tablet') {
+                styleSheet = `
+                    @media (max-width:768px) {
+                        ${styleSheet}
+                    }
+                `
+            }
+            if(media === 'Mobile') {
+                styleSheet = `
+                    @media (max-width:480px) {
+                        ${styleSheet}
+                    }
+                `
+            }
+        }
+        let customStyleSheet = document.getElementById('scrteStyleSheet_' + media);
+        if(customStyleSheet) {
+            customStyleSheet.innerText = styleSheet;
+        } else {
+            let scrteStyleSheet = document.createElement('style');
+            scrteStyleSheet.type = "text/css";
+            scrteStyleSheet.id = 'scrteStyleSheet_' + media;
+            scrteStyleSheet.appendChild(document.createTextNode(styleSheet));
+            document.body.appendChild(scrteStyleSheet);
+        }
+    }
+
+    return (
+        <React.Fragment>
+            <Form onFinish={handleFinish}>
+                <Row gutter={12}>
+                    <Col span={18}>
+                        <Form.Item
+                            name='theme'
+                        >
+                            <Input placeholder='General'></Input>
+                        </Form.Item>
+                    </Col>
+                    <Col span={6}>
+                        <Form.Item>
+                            <Button htmlType='submit' type='primary'>Save Styles</Button>
+                        </Form.Item>
+                    </Col>
+                </Row>
+            </Form>
+
+            <Collapse  expandIconPosition='right'>
+                <Panel header={<h4>Paragraph</h4>} key="1">
+                    <MediaGroup media={media} handleMediaChange={handleMediaChange}/>
+                    <ParagraphForm saveCSS={saveCSS}/>
+                </Panel>
+                <Panel header={<h4>Quote</h4>} key="2">
+                    <MediaGroup media={media} handleMediaChange={handleMediaChange}/>
+                    <ParagraphForm saveCSS={saveCSS}/>
+                </Panel>
+                <Panel header={<h4>Large Header</h4>} key="3">
+                    <MediaGroup media={media} handleMediaChange={handleMediaChange}/>
+                    <ParagraphForm saveCSS={saveCSS}/>
+                </Panel>
+                <Panel header={<h4>Medium Header</h4>} key="4">
+                    <MediaGroup media={media} handleMediaChange={handleMediaChange}/>
+                    <ParagraphForm saveCSS={saveCSS}/>
+                </Panel>
+                <Panel header={<h4>Small Header</h4>} key="5">
+                    <MediaGroup media={media} handleMediaChange={handleMediaChange}/>
+                    <ParagraphForm saveCSS={saveCSS}/>
+                </Panel>
+            </Collapse>
+
+            <LinkForm saveCSS={saveCSS}/>
+        </React.Fragment>
+    )
+}
+
+const MediaGroup = ({media, handleMediaChange}) => {
+    return (
+        <Row style={{marginBottom:'1.4rem'}}>
+            <Col span={8}>
+                <h5>Screen Size</h5>
+            </Col>
+            <Col span={16} style={{textAlign:'right'}}>
+                <Radio.Group defaultValue={media} onChange={handleMediaChange} >
+                    <Radio.Button value="Desktop">Desktop</Radio.Button>
+                    <Radio.Button value="Tablet">Tablet</Radio.Button>
+                    <Radio.Button value="Mobile">Mobile</Radio.Button>
+                </Radio.Group>
+            </Col>
+        </Row>
+        
+    )
+}
+
+const { TabPane } = Tabs;
+
 export const Design = (props) => {
+    return (
+        <Tabs defaultActiveKey='1'>
+            <TabPane tab="Style" key="1">
+                <DefineStyle/>
+            </TabPane>
+            <TabPane tab="Design" key="2">
+                <DesignComponent/>
+            </TabPane>
+        </Tabs>
+    )
+}
+
+export const DesignComponent = (props) => {
     const editor = useEditor();
     const selection = useRef(null);
     const [form] = Form.useForm();

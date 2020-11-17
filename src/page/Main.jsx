@@ -76,7 +76,7 @@ const RichTextExample = ({setOutput}) => {
           }
         }}
       />
-      <Drawer visible={open} onClose={() => setOpen(false)} width="400px" mask={false}>
+      <Drawer visible={true} onClose={() => setOpen(false)} width="500px" mask={false}>
         <Design />
       </Drawer>
       
@@ -129,7 +129,6 @@ const isMarkActive = (editor, format) => {
 
 
 const Element = ({ attributes, children, element }) => {
- 
   switch (element.type) {
     default:
       const selected = useSelected()
@@ -141,9 +140,12 @@ const Element = ({ attributes, children, element }) => {
           border: '1px solid blue'
         };
       }
+      const empty = element.children[0].text === '';
+      
       return (
-        <p  {...attributes} className={className} id={id} style={styles}>{children}</p>
+        <p placeholder='Type /'  {...attributes} className={cx(className, 'scrte_p')} id={id} style={styles}>{children}</p>
       );
+    
   }
 };
 
