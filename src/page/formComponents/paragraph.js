@@ -1,32 +1,41 @@
-import React from 'react'
-import { Form, Input, Row, Col, InputNumber, Select} from 'antd'
+import React, { useEffect } from 'react'
+import { Form, Input, Row, Col, Select} from 'antd'
 
 const { Option } = Select;
 
-export const ParagraphForm = ({saveCSS}) => {
+export const ParagraphForm = ({saveCSS, type, initialValues}) => {
+    const [form] = Form.useForm();
+    let className = `scrte_${type}`
+
+    useEffect(() => {
+        form.setFieldsValue(initialValues)
+    }, [initialValues])
+
     return (
-        <Form>
+        <Form form={form}>
             <Row style={{marginBottom:'1.4rem'}}>
                 <Col span={24}>
                     <h5>Font Family</h5>
-                    <Select 
-                    style={{width: '100%'}}
-                    defaultValue="inherit" 
-                    onChange={(e) => {
-                        let event = {
-                            target: {
-                                id: 'font-family',
-                                value: e
+                    <Form.Item name='font-family'>
+                        <Select 
+                        style={{width: '100%'}}
+                        defaultValue="inherit" 
+                        onChange={(e) => {
+                            let event = {
+                                target: {
+                                    id: 'font-family',
+                                    value: e
+                                }
                             }
-                        }
-                        saveCSS('scrte_p', event)
-                    }}>
-                        <Option value="inherit">Default</Option>
-                        <Option value="cursive">Cursive</Option>
-                        <Option value="monospace">Monospace</Option>
-                        <Option value="sans-serif">Sans-serif</Option>
-                        <Option value="serif">Serif</Option>
-                    </Select>
+                            saveCSS(className, event)
+                        }}>
+                            <Option value="inherit">Default</Option>
+                            <Option value="cursive">Cursive</Option>
+                            <Option value="monospace">Monospace</Option>
+                            <Option value="sans-serif">Sans-serif</Option>
+                            <Option value="serif">Serif</Option>
+                        </Select>
+                    </Form.Item>
                 </Col>
             </Row>
 
@@ -41,7 +50,7 @@ export const ParagraphForm = ({saveCSS}) => {
                             onBlur={(e) => {
                                 e.persist();
                                 e.target.value = e.target.value + "px"
-                                saveCSS('scrte_p', e)
+                                saveCSS(className, e)
                             }
                             } />
                     </Form.Item>
@@ -58,7 +67,7 @@ export const ParagraphForm = ({saveCSS}) => {
                                     value: e
                                 }
                             }
-                            saveCSS('scrte_p', event)
+                            saveCSS(className, event)
                         }}>
                             <Option value="300">300 (Thin)</Option>
                             <Option value="400">400 (Normal)</Option>
@@ -78,7 +87,7 @@ export const ParagraphForm = ({saveCSS}) => {
                         onBlur={(e) => {
                             e.persist();
                             e.target.value = e.target.value + "%"
-                            saveCSS('scrte_p', e)
+                            saveCSS(className, e)
                         }
                         } />
                     </Form.Item>
@@ -98,7 +107,7 @@ export const ParagraphForm = ({saveCSS}) => {
                                     value: e
                                 }
                             }
-                            saveCSS('scrte_p', event)
+                            saveCSS(className, event)
                         }}>
                             <Option value="regular">Regular</Option>
                             <Option value="uppercase">Uppercase</Option>
@@ -116,7 +125,7 @@ export const ParagraphForm = ({saveCSS}) => {
                         onBlur={(e) => {
                             e.persist();
                             e.target.value = e.target.value + "px"
-                            saveCSS('scrte_p', e)
+                            saveCSS(className, e)
                         }
                         } />
                     </Form.Item>

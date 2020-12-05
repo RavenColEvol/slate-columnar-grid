@@ -3,13 +3,21 @@ import isHotkey from "is-hotkey";
 import { Editable, withReact, useSlate, Slate, useEditor, useSelected, useFocused } from "slate-react";
 import { Editor, Transforms, createEditor } from "slate";
 import { cx, css } from 'emotion'
+import { useParams } from 'react-router-dom'
 import { withHistory } from "slate-history";
 
-import { Drawer, Button as AButton} from 'antd'
+import { Drawer, Button as AButton, Typography} from 'antd'
 import { Button, Icon, Toolbar } from "../components";
 import { Design, getStyleSheet } from './Design';
+import { withCurrentSelection } from './withSaveSelection';
+import { HTML5Backend } from 'react-dnd-html5-backend'
+import { DndProvider } from 'react-dnd'
+import { DndBlockVisual } from './VisualBuilder/DndBlockVisual'
+import { SaveTemplate } from './VisualBuilder/SaveTemplate'
+
 import './style.css'
 
+const { Title } = Typography;
 
 const HOTKEYS = {
   "mod+b": "bold",
@@ -21,11 +29,16 @@ const HOTKEYS = {
 const LIST_TYPES = ["numbered-list", "bulleted-list"];
 
 const RichTextExample = ({setOutput}) => {
-  const [value, setValue] = useState(initialValue);
+  const { uid } = useParams();
+  let tempEditor = localStorage.getItem(`tempEditor__${uid}`) ? JSON.parse(localStorage.getItem(`tempEditor__${uid}`)) : null;
+  const [value, setValue] = useState(tempEditor || initialValue);
   const [open, setOpen] = useState(false);
   const renderElement = useCallback((props) => <Element {...props} />, []);
   const renderLeaf = useCallback((props) => <Leaf {...props} />, []);
   const editor = useMemo(() => withHistory(withReact(createEditor())), []);
+  const saveSelection = () => {
+    editor.savedSelection = editor.selection;
+  }
 
   useEffect(() => {
     let styleSheet = getStyleSheet();
@@ -37,53 +50,58 @@ const RichTextExample = ({setOutput}) => {
   }, [])
 
   return (
-    <Slate
-      editor={editor}
-      value={value}
-      onChange={(value) => {
-        setValue(value);
-        setOutput(value);
-      }}
-    >
-      <Toolbar>
-        <MarkButton format="bold" icon="format_bold" />
-        <MarkButton format="italic" icon="format_italic" />
-        <MarkButton format="underline" icon="format_underlined" />
-        <MarkButton format="code" icon="code" />
-        <BlockButton format="heading-one" icon="looks_one" />
-        <BlockButton format="heading-two" icon="looks_two" />
-        <BlockButton format="block-quote" icon="format_quote" />
-        <BlockButton format="numbered-list" icon="format_list_numbered" />
-        <BlockButton format="bulleted-list" icon="format_list_bulleted" />
-      </Toolbar>
-      <Editable
-        renderElement={renderElement}
-        renderLeaf={renderLeaf}
-        placeholder="Enter some rich text…"
-        spellCheck
-        autoFocus
-        onKeyDown={(event) => {
-          for (const hotkey in HOTKEYS) {
-            if(isHotkey('mod+e', event)) {
-              event.preventDefault();
-              setOpen(!open);
-            }
-            if (isHotkey(hotkey, event)) {
-              event.preventDefault();
-              const mark = HOTKEYS[hotkey];
-              toggleMark(editor, mark);
-            }
-          }
+    <DndProvider backend={HTML5Backend}>
+      <Slate
+        editor={editor}
+        value={value}
+        onChange={(value) => {
+          localStorage.setItem(`tempEditor__${uid}`, JSON.stringify(value));
+          setValue(value);
+          setOutput(value);
         }}
-      />
-      <Drawer visible={true} onClose={() => setOpen(false)} width="500px" mask={false}>
-        <Design />
-      </Drawer>
-      
-    </Slate>
-    
+      >
+        <Toolbar>
+          <MarkButton format="bold" icon="format_bold" />
+          <MarkButton format="italic" icon="format_italic" />
+          <MarkButton format="underline" icon="format_underlined" />
+          <MarkButton format="code" icon="code" />
+          <BlockButton format="heading-one" icon="looks_one" />
+          <BlockButton format="heading-two" icon="looks_two" />
+          <BlockButton format="block-quote" icon="format_quote" />
+          <BlockButton format="numbered-list" icon="format_list_numbered" />
+          <BlockButton format="bulleted-list" icon="format_list_bulleted" />
+          <SaveTemplate />
+        </Toolbar>
+        <Editable
+          renderElement={renderElement}
+          renderLeaf={renderLeaf}
+          placeholder="Enter some rich text…"
+          spellCheck
+          autoFocus
+          onKeyDown={(event) => {
+            for (const hotkey in HOTKEYS) {
+              if(isHotkey('mod+e', event)) {
+                event.preventDefault();
+                setOpen(!open);
+              }
+              if (isHotkey(hotkey, event)) {
+                event.preventDefault();
+                const mark = HOTKEYS[hotkey];
+                toggleMark(editor, mark);
+              }
+            }
+          }}
+          onBlur={saveSelection}
+        />
+        <Drawer visible={true} onClose={() => setOpen(false)} width="500px" mask={false}>
+          <Design />
+        </Drawer>
+        
+      </Slate>
+    </DndProvider>
   );
 };
+
 
 const toggleBlock = (editor, format) => {
   const isActive = isBlockActive(editor, format);
@@ -129,11 +147,10 @@ const isMarkActive = (editor, format) => {
 
 
 const Element = ({ attributes, children, element }) => {
-  switch (element.type) {
-    default:
-      const selected = useSelected()
+  const selected = useSelected()
       const focused = useFocused();
       let { className, id, styles = {}} = element.attrs || {};
+      className = className && className.join(' ')
       if(selected && focused) {
         styles = {
           ...styles,
@@ -142,14 +159,29 @@ const Element = ({ attributes, children, element }) => {
       }
       const empty = element.children[0].text === '';
       
+  switch (element.type) {
+
+    case 'heading-one':
       return (
-        <p placeholder='Type /'  {...attributes} className={cx(className, 'scrte_p')} id={id} style={styles}>{children}</p>
+        <h1 level={1} {...attributes} className={cx(className, 'scrte_h1')} id={id} style={styles}>{children}</h1>
+      )
+    // case 'link':
+    //   return (
+    //     <a href="https://test.com" {...attributes} className={cx(className, 'scrte_a')} id={id} style={styles}>{children}</a>
+    //   )
+    default:
+
+      return (
+        <DndBlockVisual element={element}>
+          <p  placeholder='Type /'  {...attributes} className={cx(className, 'scrte_p')} id={id} style={styles}>{children}</p>
+        </DndBlockVisual>
       );
     
   }
 };
 
 const Leaf = ({ attributes, children, leaf }) => {
+  
   if (leaf.bold) {
     children = <strong>{children}</strong>;
   }
@@ -201,11 +233,14 @@ const MarkButton = ({ format, icon }) => {
 
 const initialValue = [
   {
-    type: 'paragraph',
+    type: 'link',
     children: [{ text: 'Element 1'}]
   },
   {
-    type: 'paragraph',
+    type: 'heading-one',
+    attrs: {
+      className: ['button'],
+    },
     children: [{ text: 'Element 2'}]
   },
   {
