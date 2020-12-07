@@ -1,31 +1,16 @@
 import React, { useCallback, useMemo, useState, useEffect } from "react";
-import isHotkey from "is-hotkey";
-import { Editable, withReact, useSlate, Slate, useEditor, useSelected, useFocused } from "slate-react";
-import { Editor, Transforms, createEditor } from "slate";
-import { cx, css } from 'emotion'
-import { withHistory } from "slate-history";
+import { Editable, withReact,  Slate, useSelected, useFocused } from "slate-react";
+import {  createEditor } from "slate";
+import { cx } from 'emotion'
 
-import { Drawer, Button as AButton, Typography} from 'antd'
-import { Button, Icon, Toolbar } from "../components";
-import { Design, getStyleSheet } from './Design';
-import { withCurrentSelection } from './withSaveSelection';
-import { HTML5Backend } from 'react-dnd-html5-backend'
-import { DndProvider } from 'react-dnd'
-import { DndBlockVisual } from './VisualBuilder/DndBlockVisual'
-import { SaveTemplate } from './VisualBuilder/SaveTemplate'
+import {  getStyleSheet } from './Design';
+
 import { getSingleEntry } from './VisualBuilder/utils'
+import { get } from 'idb-keyval';
 
 import './style.css'
 import { useParams } from "react-router-dom";
 
-const { Title } = Typography;
-
-const HOTKEYS = {
-  "mod+b": "bold",
-  "mod+i": "italic",
-  "mod+u": "underline",
-  "mod+`": "code"
-};
 
 
 const getValuesHelper = async (el, res, parent) => {
@@ -35,12 +20,16 @@ const getValuesHelper = async (el, res, parent) => {
 
       // ********     handle reference encountered  ********//
       if(fieldAttrs?.data_type === 'reference') {
-        console.log("res", res[fieldAttrs?.uid], res)
+        console.log('reference at 27', el, res, parent);
         const references =  await Promise.all((res[fieldAttrs?.uid] || []).map(async reference => {
           let contentTypeUid = reference['_content_type_uid'];
           let uid = reference['uid']
-          let json = JSON.parse(localStorage.getItem(`tempEditor__${contentTypeUid}`)) || [];
-          //console.log(json, res[fieldAttrs?.uid])
+          let json = [{ text: ''}];
+          let visualPageIdReference = parent?.visualPageId || 1;
+          console.log("accepted promise", contentTypeUid, uid, json, visualPageIdReference);
+          get('list').then(res => {
+            json = res?.[contentTypeUid]?.[visualPageIdReference]?.['json']
+          })
           var val = await getSingleEntry(contentTypeUid, uid).then(res => {
             return getValues(json, res);
           });
@@ -51,7 +40,7 @@ const getValuesHelper = async (el, res, parent) => {
             return { type: 'layout', children: val};
         }))
         return {
-          type: 'layout',
+          type: 'reference',
           children: references
         }
       }
@@ -74,7 +63,7 @@ const getValuesHelper = async (el, res, parent) => {
       } 
       let newEl = {
         ...el,
-        text: res[fieldAttrs?.uid]
+        text: String(res[fieldAttrs?.uid])
       }
       return newEl
     }
@@ -89,24 +78,19 @@ const getValuesHelper = async (el, res, parent) => {
 
 const getValues = async (value, res, parent = {}) => {
   let result = [];
-  let fieldAttrs = parent?.attrs?.field_attrs;
-  if(fieldAttrs?.field_metadata?.ref_multiple) {
-    console.log('multi reference encountered')
-  }
-
   
   for(let el of value) {
     const json = await getValuesHelper(el, res, parent );
     result.push(json);
   }
+  console.log('get values', value, result)
   return result;
 }
 
 
 const RichTextExample = ({setOutput}) => {
-  const { uid, entryId } = useParams();
-  let tempEditor = localStorage.getItem(`tempEditor__${uid}`) ? JSON.parse(localStorage.getItem(`tempEditor__${uid}`)) : null;
-  const [value, setValue] = useState(tempEditor || initialValue);
+  const { uid, entryId, visualPageId } = useParams();
+  const [value, setValue] = useState( initialValue);
   const renderElement = useCallback((props) => <Element {...props} />, []);
   const renderLeaf = useCallback((props) => <Leaf {...props} />, []);
   const editor = useMemo(() => withReact(createEditor()), []);
@@ -120,11 +104,15 @@ const RichTextExample = ({setOutput}) => {
     scrteStyleSheet.appendChild(document.createTextNode(styleSheet));
     document.body.appendChild(scrteStyleSheet);
 
-    getSingleEntry(uid, entryId).then(res => {
-      console.log(res);
-      getValues(value, res).then(r => {
-        console.log("use effect", r); setValue(r) });
+    get('list').then(res => {
+      let value = res[uid][visualPageId]['json'];
+      //console.log('useEffect', uid, visualPageId);
+      getSingleEntry(uid, entryId).then(res => {
+        getValues(value, res).then(r => {
+          console.log("use effect", r); setValue(r) });
+      })
     })
+    
   }, [])
 
   return (
@@ -164,7 +152,7 @@ const Element = ({ attributes, children, element }) => {
           border: '1px solid blue'
         };
       }
-      const empty = element.children[0].text === '';
+      
       
   switch (element.type) {
 
@@ -217,33 +205,9 @@ const Leaf = ({ attributes, children, leaf }) => {
 
 const initialValue = [
   {
-    type: 'link',
-    children: [{ text: 'Element 1'}]
-  },
-  {
-    type: 'heading-one',
-    attrs: {
-      className: ['button'],
-    },
-    children: [{ text: 'Element 2'}]
-  },
-  {
     type: 'paragraph',
-    children: [{ text: 'Element 3'}]
+    children: [{ text: 'Loading'}]
   },
-  {
-    type: 'paragraph',
-    children: [{ text: 'Element 4'}]
-  },
-  {
-    type: 'paragraph',
-    children: [{ text: 'Element 5'}]
-  },
-  {
-    type: 'paragraph',
-    children: [{ text: 'Element 6'}]
-  },
-
 ];
 
 export default RichTextExample;

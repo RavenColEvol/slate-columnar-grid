@@ -1,12 +1,12 @@
 import React, { useCallback, useMemo, useState, useEffect } from "react";
 import isHotkey from "is-hotkey";
-import { Editable, withReact, useSlate, Slate, useEditor, useSelected, useFocused } from "slate-react";
+import { Editable, withReact, useSlate, Slate, useEditor, useSelected, useFocused, ReactEditor } from "slate-react";
 import { Editor, Transforms, createEditor } from "slate";
 import { cx, css } from 'emotion'
 import { useParams } from 'react-router-dom'
 import { withHistory } from "slate-history";
 
-import { Drawer, Button as AButton, Typography} from 'antd'
+import { Drawer, Button as AButton, Modal, Card, Row, Col, Radio, Form} from 'antd'
 import { Button, Icon, Toolbar } from "../components";
 import { Design, getStyleSheet } from './Design';
 import { withCurrentSelection } from './withSaveSelection';
@@ -15,9 +15,10 @@ import { DndProvider } from 'react-dnd'
 import { DndBlockVisual } from './VisualBuilder/DndBlockVisual'
 import { SaveTemplate } from './VisualBuilder/SaveTemplate'
 
+import { get } from 'idb-keyval';
+
 import './style.css'
 
-const { Title } = Typography;
 
 const HOTKEYS = {
   "mod+b": "bold",
@@ -145,32 +146,81 @@ const isMarkActive = (editor, format) => {
   return marks ? marks[format] === true : false;
 };
 
+const ReferenceComponent = ({element, children}) => {
+  const { attributes } = element;
+  const editor = useEditor();
+  const [open, setOpen] = useState(false);
+  const [component, setComponent] = useState(null);
+  const handleToggle = () => setOpen(!open);
+  const [form] = Form.useForm();
+
+  const setPageVisual = () => {
+    const selectedValue = form.getFieldValue('pageId');
+    if(selectedValue) {
+      const path = ReactEditor.findPath(editor, element);
+      Transforms.setNodes(editor, {
+        visualPageId: selectedValue
+      }, {
+        at: path
+      })
+    }
+    handleToggle();
+  }
+  
+  useEffect(() => {
+    get('list').then(res => {
+      
+      setComponent(Object.entries(res[element.attrs.field_attrs.reference_to[0]] || {}).map(([key, val]) => {
+        return <Radio.Button value={key} >
+            {val['name']}
+          </Radio.Button>
+      })) 
+    })
+  }, [])
+
+  return (
+    <p {...attributes} >
+        {children}
+        <button onClick={handleToggle}>Edit</button>
+        <Modal title='Select Visual Page' visible={open} onCancel={handleToggle} onOk={setPageVisual}>
+          <Form form={form}>
+            <Form.Item name='pageId'>
+              <Radio.Group >
+                {component}
+              </Radio.Group>
+            </Form.Item>
+          </Form>
+        </Modal>
+      </p>
+  )
+}
 
 const Element = ({ attributes, children, element }) => {
   const selected = useSelected()
-      const focused = useFocused();
-      let { className, id, styles = {}} = element.attrs || {};
-      className = className && className.join(' ')
-      if(selected && focused) {
-        styles = {
-          ...styles,
-          border: '1px solid blue'
-        };
-      }
-      const empty = element.children[0].text === '';
-      
+  const focused = useFocused();
+  
+  let { className, id, styles = {}} = element.attrs || {};
+  className = className && className.join(' ')
+  if(selected && focused) {
+    styles = {
+      ...styles,
+      border: '1px solid blue'
+    };
+  }
+  
+  if(element?.attrs?.field_attrs?.data_type === 'reference') {
+    return (
+        <ReferenceComponent element={element} children={children}/>
+      )
+  }
   switch (element.type) {
 
     case 'heading-one':
       return (
         <h1 level={1} {...attributes} className={cx(className, 'scrte_h1')} id={id} style={styles}>{children}</h1>
       )
-    // case 'link':
-    //   return (
-    //     <a href="https://test.com" {...attributes} className={cx(className, 'scrte_a')} id={id} style={styles}>{children}</a>
-    //   )
     default:
-
+      console.log(element);
       return (
         <DndBlockVisual element={element}>
           <p  placeholder='Type /'  {...attributes} className={cx(className, 'scrte_p')} id={id} style={styles}>{children}</p>
@@ -230,6 +280,14 @@ const MarkButton = ({ format, icon }) => {
     </Button>
   );
 };
+
+const AsyncComponent = ({func}) => {
+  const [component, setComponent] = useState(null);
+  useEffect(() => {
+    setComponent(func());
+  }, []);
+  return component;
+}
 
 const initialValue = [
   {
