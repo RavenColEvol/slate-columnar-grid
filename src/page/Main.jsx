@@ -1,12 +1,12 @@
 import React, { useCallback, useMemo, useState, useEffect } from "react";
 import isHotkey from "is-hotkey";
 import { Editable, withReact, useSlate, Slate, useEditor, useSelected, useFocused } from "slate-react";
-import { Editor, Transforms, createEditor } from "slate";
+import { Editor, Transforms, createEditor, Node } from "slate";
 import { cx, css } from 'emotion'
 import { useParams } from 'react-router-dom'
 import { withHistory } from "slate-history";
 
-import { Drawer, Button as AButton, Typography} from 'antd'
+import { Drawer, Button as AButton, Typography, List, Card } from 'antd'
 import { Button, Icon, Toolbar } from "../components";
 import { Design, getStyleSheet } from './Design';
 import { withCurrentSelection } from './withSaveSelection';
@@ -28,7 +28,7 @@ const HOTKEYS = {
 
 const LIST_TYPES = ["numbered-list", "bulleted-list"];
 
-const RichTextExample = ({setOutput}) => {
+const RichTextExample = ({ setOutput }) => {
   const { uid } = useParams();
   let tempEditor = localStorage.getItem(`tempEditor__${uid}`) ? JSON.parse(localStorage.getItem(`tempEditor__${uid}`)) : null;
   const [value, setValue] = useState(tempEditor || initialValue);
@@ -70,6 +70,7 @@ const RichTextExample = ({setOutput}) => {
           <BlockButton format="block-quote" icon="format_quote" />
           <BlockButton format="numbered-list" icon="format_list_numbered" />
           <BlockButton format="bulleted-list" icon="format_list_bulleted" />
+          <BlockButton format="grid-list" icon="view_module" />
           <SaveTemplate />
         </Toolbar>
         <Editable
@@ -80,7 +81,7 @@ const RichTextExample = ({setOutput}) => {
           autoFocus
           onKeyDown={(event) => {
             for (const hotkey in HOTKEYS) {
-              if(isHotkey('mod+e', event)) {
+              if (isHotkey('mod+e', event)) {
                 event.preventDefault();
                 setOpen(!open);
               }
@@ -96,7 +97,7 @@ const RichTextExample = ({setOutput}) => {
         <Drawer visible={true} onClose={() => setOpen(false)} width="500px" mask={false}>
           <Design />
         </Drawer>
-        
+
       </Slate>
     </DndProvider>
   );
@@ -116,6 +117,24 @@ const toggleBlock = (editor, format) => {
     type: isActive ? "paragraph" : isList ? "list-item" : format
   });
 
+  if (format === 'grid-list') {
+    let [node] = Editor.nodes(editor, { match: n => n.type === 'grid-list', mode: "lowest" })
+    let copyNode = JSON.parse(JSON.stringify(node[0]))
+    copyNode.attrs = {
+      gutter: 16,
+      column: 3,
+      vgutter: 16
+    }
+    let child = Array.from({ length: 8 }).map((val, index) => ({
+      type: 'grid-child',
+      attrs: {},
+      children: [{ text: `Item ${index}` }]
+    }))
+    copyNode.children = child
+    Transforms.removeNodes(editor, { at: node[1] })
+
+    Transforms.insertNodes(editor, copyNode, { at: node[1] })
+  }
   if (!isActive && isList) {
     const block = { type: format, children: [] };
     Transforms.wrapNodes(editor, block);
@@ -148,22 +167,34 @@ const isMarkActive = (editor, format) => {
 
 const Element = ({ attributes, children, element }) => {
   const selected = useSelected()
-      const focused = useFocused();
-      let { className, id, styles = {}} = element.attrs || {};
-      className = className && className.join(' ')
-      if(selected && focused) {
-        styles = {
-          ...styles,
-          border: '1px solid blue'
-        };
-      }
-      const empty = element.children[0].text === '';
-      
+  const focused = useFocused();
+  let attrs = element.attrs || {}
+  let { className, id, styles = {} } = attrs
+  className = className && className.join(' ')
+  if (selected && focused) {
+    styles = {
+      ...styles,
+      border: '1px solid blue'
+    };
+  }
+  const empty = element.children[0].text === '';
+
   switch (element.type) {
 
     case 'heading-one':
       return (
         <h1 level={1} {...attributes} className={cx(className, 'scrte_h1')} id={id} style={styles}>{children}</h1>
+      )
+    case 'grid-child':
+      return (
+        <div style={{ border: "1px solid #eee" }}  {...attributes} >{children}</div>
+
+      )
+    case 'grid-list':
+      return (
+        <div {...attributes} style={{ padding: '10px 0', display: 'grid', gridTemplateColumns: `repeat(${attrs.column},1fr)`, gridGap: `${attrs.vgutter}px ${attrs.gutter}px` }}>
+          {children}
+        </div>
       )
     // case 'link':
     //   return (
@@ -173,15 +204,15 @@ const Element = ({ attributes, children, element }) => {
 
       return (
         <DndBlockVisual element={element}>
-          <p  placeholder='Type /'  {...attributes} className={cx(className, 'scrte_p')} id={id} style={styles}>{children}</p>
+          <p placeholder='Type /'  {...attributes} className={cx(className, 'scrte_p')} id={id} style={styles}>{children}</p>
         </DndBlockVisual>
       );
-    
+
   }
 };
 
 const Leaf = ({ attributes, children, leaf }) => {
-  
+
   if (leaf.bold) {
     children = <strong>{children}</strong>;
   }
@@ -234,30 +265,30 @@ const MarkButton = ({ format, icon }) => {
 const initialValue = [
   {
     type: 'link',
-    children: [{ text: 'Element 1'}]
+    children: [{ text: 'Element 1' }]
   },
   {
     type: 'heading-one',
     attrs: {
       className: ['button'],
     },
-    children: [{ text: 'Element 2'}]
+    children: [{ text: 'Element 2' }]
   },
   {
     type: 'paragraph',
-    children: [{ text: 'Element 3'}]
+    children: [{ text: 'Element 3' }]
   },
   {
     type: 'paragraph',
-    children: [{ text: 'Element 4'}]
+    children: [{ text: 'Element 4' }]
   },
   {
     type: 'paragraph',
-    children: [{ text: 'Element 5'}]
+    children: [{ text: 'Element 5' }]
   },
   {
     type: 'paragraph',
-    children: [{ text: 'Element 6'}]
+    children: [{ text: 'Element 6' }]
   },
 
 ];

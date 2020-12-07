@@ -1,9 +1,10 @@
-import React, { useRef, useEffect, useContext } from 'react'
+import React, { useRef, useEffect, useContext, useState } from 'react'
 import { Transforms, Element, Editor, Range, Node } from 'slate'
 import { useEditor, ReactEditor, useSlate } from 'slate-react'
 import { Col, Collapse, Row, Card, Input, Radio, Slider, InputNumber, Form, Select, Tag, Menu, Dropdown, Button } from 'antd';
 import { AlignCenterOutlined, AlignLeftOutlined, AlignRightOutlined, DownOutlined } from '@ant-design/icons'
 import { useCurrentSelection, CurrentSelectionContext } from './withSaveSelection'
+import Grid from 'antd/lib/card/Grid';
 
 const { Panel } = Collapse;
 const { Option } = Select;
@@ -127,8 +128,8 @@ export const DesignComponent = () => {
     return (
         <div>
             <ApplyStyles editor={editor} />
-            <div style={{marginBottom: '1.4rem'}}></div>
-            <Collapse defaultActiveKey={['extra']}>
+            <div style={{ marginBottom: '1.4rem' }}></div>
+            <Collapse defaultActiveKey={['grid']}>
                 <Panel header={<h5>Dimension</h5>} key="dimension">
                     <DimensionForm
                         handleBlur={handleBlur}
@@ -146,7 +147,10 @@ export const DesignComponent = () => {
                     />
                 </Panel>
                 <Panel header={<h5>Extra</h5>} key="extra">
-                    <ExtraForm handleBlur={handleBlur} editor={editor}/>
+                    <ExtraForm handleBlur={handleBlur} editor={editor} />
+                </Panel>
+                <Panel header={<h5>Grid</h5>} key="grid">
+                    <GridForm></GridForm>
                 </Panel>
             </Collapse>
         </div>
@@ -158,7 +162,115 @@ const addUnit = (e, unit) => {
     e.target.value = `${e.target.value}${unit}`
     return e;
 }
+const GridForm = () => {
+    const gutters = {
+        0: 8,
+        1: 16,
+        2: 24,
+        3: 32,
+        4: 40,
+        5: 48
+    };
+    const colCounts = {
+        0: 2, 1: 3, 2: 4, 3: 6, 4: 8, 5: 12
+    }
+    const editor = useSlate();
+    let customSelection = editor.selection || editor.savedSelection || null
+    let [element] = Editor.nodes(editor, { at: customSelection, match: n => n.type === 'grid-list', mode: "lowest" })
+    const [gutterKey, setGutterKey] = useState(1)
+    const [vgutterKey, setVGutterKey] = useState(1)
+    const [colCountKey, setColCountKey] = useState(1)
+    const [disable, setDisableKey] = useState(true)
+    useEffect(() => {
+        if (element) {
+            let attrs = element[0].attrs
+            var key = Object.keys(gutters).filter(function (key) { return gutters[key] === attrs.gutter })[0] || 1
+            var vkey = Object.keys(gutters).filter(function (key) { return gutters[key] === attrs.vgutter })[0] || 1
+            var countKey = Object.keys(colCounts).filter(function (key) { return colCounts[key] === attrs.column })[0] || 1
+            setGutterKey(key)
+            setVGutterKey(vkey)
+            setColCountKey(countKey)
+            setDisableKey(false)
+        } else {
+            setDisableKey(true)
+        }
+    }, [element])
 
+
+    const onGutterChange = (key) => {
+        let customSelection = editor.selection || editor.savedSelection || null
+        if (customSelection) {
+            const [grid] = Editor.nodes(editor, { at: customSelection, match: n => n.type === 'grid-list', mode: "lowest" })
+            if (grid) {
+                Transforms.setNodes(editor, { attrs: { ...grid[0].attrs, gutter: gutters[key] } }, { at: grid[1] })
+                setGutterKey(key)
+            }
+        }
+    }
+    const onVGutterChange = (key) => {
+        let customSelection = editor.selection || editor.savedSelection || null
+        if (customSelection) {
+            const [grid] = Editor.nodes(editor, { at: customSelection, match: n => n.type === 'grid-list', mode: "lowest" })
+            if (grid) {
+                Transforms.setNodes(editor, { attrs: { ...grid[0].attrs, vgutter: gutters[key] } }, { at: grid[1] })
+                setVGutterKey(key)
+            }
+        }
+    }
+    const onColCountChange = (key) => {
+        let customSelection = editor.selection || editor.savedSelection || null
+        if (customSelection) {
+            const [grid] = Editor.nodes(editor, { at: customSelection, match: n => n.type === 'grid-list', mode: "lowest" })
+            if (grid) {
+                Transforms.setNodes(editor, { attrs: { ...grid[0].attrs, column: colCounts[key] } }, { at: grid[1] })
+                setColCountKey(key)
+            }
+        }
+    }
+    return (
+        <React.Fragment>
+            <div style={{}}>
+                <span>Horizontal Gutter (px): </span>
+                <Slider
+                    min={0}
+                    max={Object.keys(gutters).length - 1}
+                    value={gutterKey}
+                    onChange={onGutterChange}
+                    marks={gutters}
+                    step={null}
+                    disabled={disable}
+                    tipFormatter={value => gutters[value]}
+                />
+            </div>
+            <div style={{}}>
+                <span>Vertical Gutter (px): </span>
+                <Slider
+                    min={0}
+                    max={Object.keys(gutters).length - 1}
+                    value={vgutterKey}
+                    onChange={onVGutterChange}
+                    marks={gutters}
+                    step={null}
+                    disabled={disable}
+                    tipFormatter={value => gutters[value]}
+                />
+            </div>
+            <div style={{}}>
+                <span>Column Count:</span>
+                <Slider
+                    min={0}
+                    max={Object.keys(colCounts).length - 1}
+                    value={colCountKey}
+                    onChange={onColCountChange}
+                    marks={colCounts}
+                    step={null}
+                    disabled={disable}
+                    tipFormatter={value => colCounts[value]}
+                />
+            </div>
+        </React.Fragment>
+    )
+}
 const DimensionForm = ({ handleBlur, handleFocus }) => {
     return (
         <React.Fragment>
@@ -314,14 +426,14 @@ const TypographyForm = ({ handleBlur, handleFocus, editor }) => {
     )
 }
 
-const ExtraForm = ({editor, handleBlur}) => {
+const ExtraForm = ({ editor, handleBlur }) => {
     const handleClick = (className) => {
-        for(let [node, path] of Editor.nodes(editor, editor.savedSelection)) {
+        for (let [node, path] of Editor.nodes(editor, editor.savedSelection)) {
             console.log(node, path)
-            if(Element.isElement(node) && node.type !== 'docs') {
+            if (Element.isElement(node) && node.type !== 'docs') {
                 let beforeAttrs = Object.assign({}, node.attrs);
                 // case 1: first
-                if(beforeAttrs.hasOwnProperty('className') === false) {
+                if (beforeAttrs.hasOwnProperty('className') === false) {
                     beforeAttrs['className'] = [className, 'animate__animated'];
                 }
                 // case 2: new class
@@ -333,7 +445,7 @@ const ExtraForm = ({editor, handleBlur}) => {
                 else {
                     beforeAttrs['className'] = [...beforeAttrs['className'], className, 'animate__animated'];
                 }
-                Transforms.setNodes(editor, { 
+                Transforms.setNodes(editor, {
                     attrs: beforeAttrs
                 }, {
                     at: path
@@ -344,11 +456,11 @@ const ExtraForm = ({editor, handleBlur}) => {
     const handleBlurIntermediate = () => {
         let styles = '';
         Object.entries(form.getFieldsValue()).forEach((val) => {
-            if(val[1]) {
-                if(val[0].startsWith('rotate')) {
-                    styles += ` ${val[0]}(${val[1]}deg)`; 
+            if (val[1]) {
+                if (val[0].startsWith('rotate')) {
+                    styles += ` ${val[0]}(${val[1]}deg)`;
                 }
-                else styles += ` ${val[0]}(${val[1]})`; 
+                else styles += ` ${val[0]}(${val[1]})`;
             }
         })
         console.log(styles);
@@ -364,11 +476,12 @@ const ExtraForm = ({editor, handleBlur}) => {
         <Menu>
             <Menu.Item onMouseDown={(e) => {
                 e.preventDefault();
-                handleClick('animate__fadeIn')}
+                handleClick('animate__fadeIn')
+            }
             }>fade in</Menu.Item>
         </Menu>
-    )   
-    
+    )
+
     return (
         <React.Fragment>
             <Card title='Transform' size='small' style={{ marginBottom: '1.4rem' }}>
@@ -388,25 +501,25 @@ const ExtraForm = ({editor, handleBlur}) => {
                         <Col span={12}>
                             <h5>Scale Y</h5>
                             <Form.Item name='scaleY'>
-                                <Input  onBlur={handleBlurIntermediate} addonAfter='px' />
+                                <Input onBlur={handleBlurIntermediate} addonAfter='px' />
                             </Form.Item>
                         </Col>
                         <Col span={12}>
                             <h5>Rotate X</h5>
                             <Form.Item name='rotateX'>
-                                <Input  onBlur={handleBlurIntermediate} addonAfter='deg' />
+                                <Input onBlur={handleBlurIntermediate} addonAfter='deg' />
                             </Form.Item>
                         </Col>
                         <Col span={12}>
                             <h5>Rotate Y</h5>
                             <Form.Item name='rotateY'>
-                                <Input  onBlur={handleBlurIntermediate} addonAfter='deg' />
+                                <Input onBlur={handleBlurIntermediate} addonAfter='deg' />
                             </Form.Item>
                         </Col>
                         <Col span={12}>
                             <h5>Rotate Z</h5>
                             <Form.Item name='rotateZ'>
-                                <Input  onBlur={handleBlurIntermediate} addonAfter='deg' />
+                                <Input onBlur={handleBlurIntermediate} addonAfter='deg' />
                             </Form.Item>
                         </Col>
                     </Row>
