@@ -12,16 +12,24 @@ export const DndBlockVisual = (props) => {
   const [, drop] = useDrop({
     accept: accept,
     collect: (monitor) => {
-    
+
     },
     hover: (item, monitor) => {
     },
     drop: (item, monitor) => {
       let path = [...ReactEditor.findPath(editor, element)];
       path = [...path.splice(0, path.length - 1), path[path.length - 1] + 1]
-      console.log(item.template);
       let node = {};
       Object.assign(node, item.template);
+      if (node?.attrs?.field_attrs?.multiple) {
+        node.type = 'list-container'
+        let child = Array.from({ length: 4 }).map((val, index) => ({
+          type: 'list-child',
+          attrs: {},
+          children: [{ text: `Item ${index}` }]
+        }))
+        node.children = child
+      }
       Transforms.insertNodes(editor, node, {
         at: path
       })

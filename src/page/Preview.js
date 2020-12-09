@@ -1,112 +1,106 @@
 import React, { useCallback, useMemo, useState, useEffect } from "react";
-import isHotkey from "is-hotkey";
-import { Editable, withReact, useSlate, Slate, useEditor, useSelected, useFocused } from "slate-react";
-import { Editor, Transforms, createEditor } from "slate";
-import { cx, css } from 'emotion'
-import { withHistory } from "slate-history";
+import { Editable, withReact, Slate, useSelected, useFocused } from "slate-react";
+import { createEditor } from "slate";
+import { cx } from 'emotion'
 
-import { Drawer, Button as AButton, Typography} from 'antd'
-import { Button, Icon, Toolbar } from "../components";
-import { Design, getStyleSheet } from './Design';
-import { withCurrentSelection } from './withSaveSelection';
-import { HTML5Backend } from 'react-dnd-html5-backend'
-import { DndProvider } from 'react-dnd'
-import { DndBlockVisual } from './VisualBuilder/DndBlockVisual'
-import { SaveTemplate } from './VisualBuilder/SaveTemplate'
+import { getStyleSheet } from './Design';
+
 import { getSingleEntry } from './VisualBuilder/utils'
+import { get } from 'idb-keyval';
 
 import './style.css'
 import { useParams } from "react-router-dom";
 
-const { Title } = Typography;
-
-const HOTKEYS = {
-  "mod+b": "bold",
-  "mod+i": "italic",
-  "mod+u": "underline",
-  "mod+`": "code"
-};
-
-
+const multiValueType = ['grid-list', 'list-container']
+const multiValueField = {
+  'list-container': 'list-child',
+  'grid-list': 'grid-child'
+}
 const getValuesHelper = async (el, res, parent) => {
   let fieldAttrs = parent?.attrs?.field_attrs;
-  if(!el.children) {
-    if(fieldAttrs?.uid) {
+  if (!el.children) {
+    if (fieldAttrs?.uid) {
 
       // ********     handle reference encountered  ********//
-      if(fieldAttrs?.data_type === 'reference') {
-        console.log("res", res[fieldAttrs?.uid], res)
-        const references =  await Promise.all((res[fieldAttrs?.uid] || []).map(async reference => {
+      if (fieldAttrs?.data_type === 'reference') {
+        const references = await Promise.all((res[fieldAttrs?.uid] || []).map(async reference => {
           let contentTypeUid = reference['_content_type_uid'];
           let uid = reference['uid']
-          let json = JSON.parse(localStorage.getItem(`tempEditor__${contentTypeUid}`)) || [];
-          //console.log(json, res[fieldAttrs?.uid])
+          let json = [{ text: '' }];
+          let visualPageIdReference = parent?.visualPageId || 1;
+          get('list').then(res => {
+            json = res?.[contentTypeUid]?.[visualPageIdReference]?.['json']
+          })
           var val = await getSingleEntry(contentTypeUid, uid).then(res => {
             return getValues(json, res);
           });
-          console.log("reference", val, json, uid, contentTypeUid)
-          if(val === [] || val === undefined)
-            return { type: 'paragraph', children: [{text: ''}]}
+          if (val === [] || val === undefined)
+            return { type: 'paragraph', children: [{ text: '' }] }
           else
-            return { type: 'layout', children: val};
+            return { type: 'layout', children: val };
         }))
         return {
-          type: 'layout',
+          type: 'reference',
           children: references
         }
       }
 
       // ********     handle multiple encountered  ********//
-      if(fieldAttrs?.multiple) {
-        if(typeof(res[fieldAttrs?.uid][0]) === 'string') {
+      if (fieldAttrs?.multiple) {
+        if (typeof (res[fieldAttrs?.uid][0]) === 'string') {
           let newEl = {
-            type: 'list',
-            children: (res[fieldAttrs?.uid] || []).map(item => ({
-              type: 'list-item',
-              children: [{ text: item}]
-            }))
+            type: parent.type,
+            attrs: { ...parent.attrs },
+            children: (res[fieldAttrs?.uid] || []).map(item => {
+              return ({
+                type: multiValueField[parent.type],
+                children: [{ text: item }]
+              })
+            })
           }
           return newEl;
         }
         else {
           return el
         }
-      } 
+      }
       let newEl = {
         ...el,
-        text: res[fieldAttrs?.uid]
+        text: String(res[fieldAttrs?.uid])
       }
       return newEl
     }
     return el;
-  } 
+  }
   let newEl = {
     ...el
   }
   newEl['children'] = await getValues(el.children, res, el);
   return newEl;
-} 
+}
 
 const getValues = async (value, res, parent = {}) => {
   let result = [];
-  let fieldAttrs = parent?.attrs?.field_attrs;
-  if(fieldAttrs?.field_metadata?.ref_multiple) {
-    console.log('multi reference encountered')
-  }
 
-  
-  for(let el of value) {
-    const json = await getValuesHelper(el, res, parent );
-    result.push(json);
+  for (let el of value) {
+    if (multiValueType.includes(el.type)) {
+      el = { ...el, children: [{ text: '{{hi}}' }] }
+    }
+    const json = await getValuesHelper(el, res, parent);
+    if (multiValueType.includes(el.type)) {
+      result.push(json.children[0]);
+    }
+    else {
+      result.push(json);
+    }
   }
   return result;
 }
 
 
-const RichTextExample = ({setOutput}) => {
-  const { uid, entryId } = useParams();
-  let tempEditor = localStorage.getItem(`tempEditor__${uid}`) ? JSON.parse(localStorage.getItem(`tempEditor__${uid}`)) : null;
-  const [value, setValue] = useState(tempEditor || initialValue);
+const RichTextExample = ({ setOutput }) => {
+  const { uid, entryId, visualPageId } = useParams();
+  const [value, setValue] = useState(initialValue);
   const renderElement = useCallback((props) => <Element {...props} />, []);
   const renderLeaf = useCallback((props) => <Leaf {...props} />, []);
   const editor = useMemo(() => withReact(createEditor()), []);
@@ -120,32 +114,37 @@ const RichTextExample = ({setOutput}) => {
     scrteStyleSheet.appendChild(document.createTextNode(styleSheet));
     document.body.appendChild(scrteStyleSheet);
 
-    getSingleEntry(uid, entryId).then(res => {
-      console.log(res);
-      getValues(value, res).then(r => {
-        console.log("use effect", r); setValue(r) });
+    get('list').then(res => {
+      let value = res[uid][visualPageId]['json'];
+      //console.log('useEffect', uid, visualPageId);
+      getSingleEntry(uid, entryId).then(res => {
+        getValues(value, res).then(r => {
+          console.log("use effect", r); setValue(r)
+        });
+      })
     })
+
   }, [])
 
   return (
-      <Slate
-        editor={editor}
-        value={value}
-        onChange={() => {}}
-      >
-        
-          <Editable
-            renderElement={renderElement}
-            renderLeaf={renderLeaf}
-            placeholder="Enter some rich text…"
-            spellCheck
-            autoFocus
-            contentEditable='false'
-            readOnly='true'
-            onKeyDown={(event) => {}}
-          />
-        
-      </Slate>
+    <Slate
+      editor={editor}
+      value={value}
+      onChange={() => { }}
+    >
+
+      <Editable
+        renderElement={renderElement}
+        renderLeaf={renderLeaf}
+        placeholder="Enter some rich text…"
+        spellCheck
+        autoFocus
+        contentEditable='false'
+        readOnly='true'
+        onKeyDown={(event) => { }}
+      />
+
+    </Slate>
   );
 };
 
@@ -155,17 +154,19 @@ const RichTextExample = ({setOutput}) => {
 
 const Element = ({ attributes, children, element }) => {
   const selected = useSelected()
-      const focused = useFocused();
-      let { className, id, styles = {}} = element.attrs || {};
-      className = className && className.join(' ')
-      if(selected && focused) {
-        styles = {
-          ...styles,
-          border: '1px solid blue'
-        };
-      }
-      const empty = element.children[0].text === '';
-      
+  const focused = useFocused();
+  let attrs = element.attrs || {}
+  let { className, id, styles = {} } = attrs
+  className = className && className.join(' ')
+  if (selected && focused) {
+    styles = {
+      ...styles,
+      border: '1px solid blue'
+    };
+  }
+
+
+
   switch (element.type) {
 
     case 'heading-one':
@@ -184,11 +185,33 @@ const Element = ({ attributes, children, element }) => {
       return (
         <li {...attributes}>{children}</li>
       )
+    case 'grid-child':
+      return (
+        <div  {...attributes} style={{ padding: '5px 10px', borderRadius: '3px', background: '#f2f4f5', border: "1px solid #f0f0f0" }}>{children}</div>
+      )
+    case 'grid-list':
+      return (
+        <div {...attributes} style={{ padding: '10px 0', display: 'grid', gridTemplateColumns: `repeat(${attrs.column},1fr)`, gridGap: `${attrs.vgutter}px ${attrs.gutter}px` }}>
+          {children}
+        </div>
+      )
+    case 'list-container':
+      return (
+        <div {...attributes}>
+          {children}
+        </div>
+      )
+    case 'list-child':
+      return (
+        <div {...attributes} style={{ padding: '5px 10px', borderRadius: '3px', background: '#f2f4f5', border: "1px solid #f0f0f0", marginBottom: '0.4rem' }}>
+          {children}
+        </div>
+      )
     default:
       return (
         <p placeholder='Type /'  {...attributes} className={cx(className, 'scrte_p')} id={id} style={styles}>{children}</p>
       );
-    
+
   }
 };
 
@@ -217,33 +240,9 @@ const Leaf = ({ attributes, children, leaf }) => {
 
 const initialValue = [
   {
-    type: 'link',
-    children: [{ text: 'Element 1'}]
-  },
-  {
-    type: 'heading-one',
-    attrs: {
-      className: ['button'],
-    },
-    children: [{ text: 'Element 2'}]
-  },
-  {
     type: 'paragraph',
-    children: [{ text: 'Element 3'}]
+    children: [{ text: 'Loading' }]
   },
-  {
-    type: 'paragraph',
-    children: [{ text: 'Element 4'}]
-  },
-  {
-    type: 'paragraph',
-    children: [{ text: 'Element 5'}]
-  },
-  {
-    type: 'paragraph',
-    children: [{ text: 'Element 6'}]
-  },
-
 ];
 
 export default RichTextExample;

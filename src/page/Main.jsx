@@ -1,12 +1,12 @@
 import React, { useCallback, useMemo, useState, useEffect } from "react";
 import isHotkey from "is-hotkey";
-import { Editable, withReact, useSlate, Slate, useEditor, useSelected, useFocused } from "slate-react";
-import { Editor, Transforms, createEditor, Node } from "slate";
+import { Editable, withReact, useSlate, Slate, useEditor, useSelected, useFocused, ReactEditor } from "slate-react";
+import { Editor, Transforms, createEditor } from "slate";
 import { cx, css } from 'emotion'
 import { useParams } from 'react-router-dom'
 import { withHistory } from "slate-history";
 
-import { Drawer, Button as AButton, Typography, List, Card } from 'antd'
+import { Drawer, Button as AButton, Modal, Card, Row, Col, Radio, Form } from 'antd'
 import { Button, Icon, Toolbar } from "../components";
 import { Design, getStyleSheet } from './Design';
 import { withCurrentSelection } from './withSaveSelection';
@@ -15,9 +15,10 @@ import { DndProvider } from 'react-dnd'
 import { DndBlockVisual } from './VisualBuilder/DndBlockVisual'
 import { SaveTemplate } from './VisualBuilder/SaveTemplate'
 
+import { get } from 'idb-keyval';
+
 import './style.css'
 
-const { Title } = Typography;
 
 const HOTKEYS = {
   "mod+b": "bold",
@@ -71,6 +72,8 @@ const RichTextExample = ({ setOutput }) => {
           <BlockButton format="numbered-list" icon="format_list_numbered" />
           <BlockButton format="bulleted-list" icon="format_list_bulleted" />
           <BlockButton format="grid-list" icon="view_module" />
+          <BlockButton format="list-container" icon="view_list" />
+
           <SaveTemplate />
         </Toolbar>
         <Editable
@@ -112,29 +115,49 @@ const toggleBlock = (editor, format) => {
     match: (n) => LIST_TYPES.includes(n.type),
     split: true
   });
+  if (format === 'list-container') {
+    let [node] = Editor.nodes(editor, { match: n => n.type === 'grid-list', mode: "lowest" })
+    if (node) {
+      let copyNode = JSON.parse(JSON.stringify(node[0]))
+      copyNode.type = format
+      let child = Array.from({ length: 4 }).map((val, index) => ({
+        type: 'list-child',
+        attrs: {},
+        children: [{ text: `Item ${index}` }]
+      }))
+      copyNode.children = child
+      Transforms.removeNodes(editor, { at: node[1] })
 
+      Transforms.insertNodes(editor, copyNode, { at: node[1] })
+
+    }
+    return
+  }
+  if (format === 'grid-list') {
+    let [node] = Editor.nodes(editor, { match: n => n.type === 'list-container', mode: "lowest" })
+    if (node) {
+      let copyNode = JSON.parse(JSON.stringify(node[0]))
+      copyNode.type = 'grid-list'
+      copyNode.attrs = {
+        ...copyNode.attrs,
+        gutter: 16,
+        column: 3,
+        vgutter: 16
+      }
+      let child = Array.from({ length: 12 }).map((val, index) => ({
+        type: 'grid-child',
+        attrs: {},
+        children: [{ text: `Item ${index}` }]
+      }))
+      copyNode.children = child
+      Transforms.removeNodes(editor, { at: node[1] })
+      Transforms.insertNodes(editor, copyNode, { at: node[1] })
+    }
+    return
+  }
   Transforms.setNodes(editor, {
     type: isActive ? "paragraph" : isList ? "list-item" : format
   });
-
-  if (format === 'grid-list') {
-    let [node] = Editor.nodes(editor, { match: n => n.type === 'grid-list', mode: "lowest" })
-    let copyNode = JSON.parse(JSON.stringify(node[0]))
-    copyNode.attrs = {
-      gutter: 16,
-      column: 3,
-      vgutter: 16
-    }
-    let child = Array.from({ length: 8 }).map((val, index) => ({
-      type: 'grid-child',
-      attrs: {},
-      children: [{ text: `Item ${index}` }]
-    }))
-    copyNode.children = child
-    Transforms.removeNodes(editor, { at: node[1] })
-
-    Transforms.insertNodes(editor, copyNode, { at: node[1] })
-  }
   if (!isActive && isList) {
     const block = { type: format, children: [] };
     Transforms.wrapNodes(editor, block);
@@ -164,6 +187,54 @@ const isMarkActive = (editor, format) => {
   return marks ? marks[format] === true : false;
 };
 
+const ReferenceComponent = ({ element, children }) => {
+  const { attributes } = element;
+  const editor = useEditor();
+  const [open, setOpen] = useState(false);
+  const [component, setComponent] = useState(null);
+  const handleToggle = () => setOpen(!open);
+  const [form] = Form.useForm();
+
+  const setPageVisual = () => {
+    const selectedValue = form.getFieldValue('pageId');
+    if (selectedValue) {
+      const path = ReactEditor.findPath(editor, element);
+      Transforms.setNodes(editor, {
+        visualPageId: selectedValue
+      }, {
+        at: path
+      })
+    }
+    handleToggle();
+  }
+
+  useEffect(() => {
+    get('list').then(res => {
+
+      setComponent(Object.entries(res[element.attrs.field_attrs.reference_to[0]] || {}).map(([key, val]) => {
+        return <Radio.Button value={key} >
+          {val['name']}
+        </Radio.Button>
+      }))
+    })
+  }, [])
+
+  return (
+    <p {...attributes} >
+      {children}
+      <button onClick={handleToggle}>Edit</button>
+      <Modal title='Select Visual Page' visible={open} onCancel={handleToggle} onOk={setPageVisual}>
+        <Form form={form}>
+          <Form.Item name='pageId'>
+            <Radio.Group >
+              {component}
+            </Radio.Group>
+          </Form.Item>
+        </Form>
+      </Modal>
+    </p>
+  )
+}
 
 const Element = ({ attributes, children, element }) => {
   const selected = useSelected()
@@ -177,8 +248,12 @@ const Element = ({ attributes, children, element }) => {
       border: '1px solid blue'
     };
   }
-  const empty = element.children[0].text === '';
 
+  if (element?.attrs?.field_attrs?.data_type === 'reference') {
+    return (
+      <ReferenceComponent element={element} children={children} />
+    )
+  }
   switch (element.type) {
 
     case 'heading-one':
@@ -187,12 +262,23 @@ const Element = ({ attributes, children, element }) => {
       )
     case 'grid-child':
       return (
-        <div style={{ border: "1px solid #eee" }}  {...attributes} >{children}</div>
-
+        <div style={{ padding: '5px 10px', borderRadius: '3px', background: '#f2f4f5', border: "1px solid #f0f0f0" }}  {...attributes} >{children}</div>
       )
     case 'grid-list':
       return (
-        <div {...attributes} style={{ padding: '10px 0', display: 'grid', gridTemplateColumns: `repeat(${attrs.column},1fr)`, gridGap: `${attrs.vgutter}px ${attrs.gutter}px` }}>
+        <div {...attributes} style={{ background: 'white', padding: '10px 0', display: 'grid', gridTemplateColumns: `repeat(${attrs.column},1fr)`, gridGap: `${attrs.vgutter}px ${attrs.gutter}px` }}>
+          {children}
+        </div>
+      )
+    case 'list-container':
+      return (
+        <div {...attributes}>
+          {children}
+        </div>
+      )
+    case 'list-child':
+      return (
+        <div {...attributes} style={{ padding: '5px 10px', borderRadius: '3px', background: '#f2f4f5', border: "1px solid #f0f0f0", marginBottom: '0.4rem' }}>
           {children}
         </div>
       )
@@ -201,7 +287,6 @@ const Element = ({ attributes, children, element }) => {
     //     <a href="https://test.com" {...attributes} className={cx(className, 'scrte_a')} id={id} style={styles}>{children}</a>
     //   )
     default:
-
       return (
         <DndBlockVisual element={element}>
           <p placeholder='Type /'  {...attributes} className={cx(className, 'scrte_p')} id={id} style={styles}>{children}</p>
@@ -261,6 +346,14 @@ const MarkButton = ({ format, icon }) => {
     </Button>
   );
 };
+
+const AsyncComponent = ({ func }) => {
+  const [component, setComponent] = useState(null);
+  useEffect(() => {
+    setComponent(func());
+  }, []);
+  return component;
+}
 
 const initialValue = [
   {

@@ -40,7 +40,7 @@ const Home = (props) => {
     <>
       <HashRouter>
         <Switch>
-          <Route path='/builder/:uid/:entryId?'>
+          <Route path='/builder/visual/:visualPageId/content_types/:uid'>
           <Layout style={{ minHeight: "100vh" }}>
             <Content style={{ background: "white" }}>
               <Main setOutput={setOutput} />
@@ -68,7 +68,7 @@ const Home = (props) => {
             <VisualPage />
           </Route>
 
-          <Route path='/preview/:uid/:entryId?'>
+          <Route path='/preview/content_types/:uid/entries/:entryId/visual/:visualPageId'>
             <Preview/>
           </Route>
         </Switch>
